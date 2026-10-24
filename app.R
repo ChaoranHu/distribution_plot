@@ -41,6 +41,20 @@ param_sliders <- function(registry, id_fun, tabs_id) {
   do.call(navset_hidden, c(panels, list(id = tabs_id)))
 }
 
+pin_list_ui <- function(items, remove_input, empty_text) {
+  if (!length(items)) return(p(class = "small text-muted fst-italic", empty_text))
+  tags$div(class = "pin-list", lapply(seq_along(items), function(i) {
+    tags$div(
+      class = "pin-row",
+      tags$span(class = "swatch", style = paste0("background:", palette_okabe[i])),
+      tags$span(class = "pin-label", items[[i]]$label),
+      tags$button(class = "btn btn-sm btn-link pin-remove", title = "Remove",
+                  onclick = sprintf("Shiny.setInputValue('%s', %d, {priority: 'event'})", remove_input, i),
+                  icon("xmark"))
+    )
+  }))
+}
+
 info_tip <- function(...) tooltip(icon("circle-info", class = "text-muted"), ...)
 
 # Non-ASCII characters as HTML entities, so Greek letters survive any server locale.
@@ -119,16 +133,6 @@ uni_sidebar <- sidebar(
 )
 
 uni_main <- tagList(
-  layout_columns(
-    fill = FALSE,
-    col_widths = c(3, 3, 3, 3),
-    value_box("Mean", textOutput("vb_mean"), showcase = icon("bullseye"), theme = "text-primary"),
-    value_box("Std. deviation", textOutput("vb_sd"), showcase = icon("arrows-left-right"),
-              theme = "text-info"),
-    value_box("Median", textOutput("vb_median"), showcase = icon("divide"), theme = "text-success"),
-    value_box(uiOutput("vb_prob_title", inline = TRUE), textOutput("vb_prob"),
-              showcase = icon("percent"), theme = "text-warning")
-  ),
   card(
     full_screen = TRUE,
     min_height = "520px",
@@ -140,10 +144,10 @@ uni_main <- tagList(
     card_body(uiOutput("plot_area"))
   ),
   layout_columns(
-    col_widths = c(5, 7),
-    card(card_header("Formula"), card_body(uiOutput("formula"))),
+    col_widths = c(7, 5),
     card(card_header("Summary of every curve on the plot"),
-         card_body(tableOutput("summary_table")))
+         card_body(class = "p-2", tableOutput("summary_table"))),
+    card(card_header("Formula"), card_body(uiOutput("formula")))
   )
 )
 
@@ -151,18 +155,27 @@ bv_sidebar <- sidebar(
   width = 340,
   accordion(
     multiple = TRUE,
-    open = c("Distribution", "Display"),
+    open = c("Distribution", "Compare", "Display"),
     accordion_panel(
       "Distribution", icon = icon("mountain"),
       selectInput("bv_dist", NULL, choices = bv_choices, selected = "bvn"),
       param_sliders(bivariates, bv_input_id, "bv_tabs")
     ),
     accordion_panel(
+      "Compare", icon = icon("layer-group"),
+      p(class = "small text-muted",
+        "Pin the current surface, then change the parameters or the distribution to overlay another one."),
+      actionButton("bv_pin", "Pin current surface", icon = icon("thumbtack"),
+                   class = "btn-primary w-100 mb-2"),
+      uiOutput("bv_pin_list"),
+      actionLink("bv_clear_pins", "Clear all pinned surfaces", icon = icon("trash-can"))
+    ),
+    accordion_panel(
       "Display", icon = icon("cube"),
       radioButtons("bv_view", NULL,
                    c("3-D surface and contour" = "both", "3-D surface" = "surface",
                      "Contour map" = "contour"), selected = "both"),
-      selectInput("bv_colors", "Colour scale",
+      selectInput("bv_colors", "Colour scale (single surface)",
                   c("Viridis", "Cividis", "YlGnBu", "Blues", "Portland", "Hot", "Electric")),
       sliderInput("bv_n", "Grid resolution", min = 30, max = 150, value = 80, step = 10,
                   ticks = FALSE),
@@ -195,10 +208,12 @@ bv_main <- tagList(
     card_header(textOutput("bv_title", inline = TRUE)),
     card_body(uiOutput("bv_plot_area"))
   ),
+  card(card_header("Summary of every surface on the plot"),
+       card_body(class = "p-2", tableOutput("bv_summary_table"))),
   layout_columns(
     col_widths = c(7, 5),
     card(card_header("Formula"), card_body(uiOutput("bv_formula"))),
-    card(card_header("Moments"), card_body(uiOutput("bv_moments")))
+    card(card_header("Moments of the live surface"), card_body(uiOutput("bv_moments")))
   )
 )
 
@@ -305,20 +320,7 @@ server <- function(input, output, session) {
     cs
   })
 
-  output$pin_list <- renderUI({
-    cs <- pins()
-    if (!length(cs)) return(p(class = "small text-muted fst-italic", "No pinned curves yet."))
-    tags$div(class = "pin-list", lapply(seq_along(cs), function(i) {
-      tags$div(
-        class = "pin-row",
-        tags$span(class = "swatch", style = paste0("background:", palette_okabe[i])),
-        tags$span(class = "pin-label", cs[[i]]$label),
-        tags$button(class = "btn btn-sm btn-link pin-remove", title = "Remove",
-                    onclick = sprintf("Shiny.setInputValue('remove_pin', %d, {priority: 'event'})", i),
-                    icon("xmark"))
-      )
-    }))
-  })
+  output$pin_list <- renderUI(pin_list_ui(pins(), "remove_pin", "No pinned curves yet."))
 
   xlim <- reactive({
     if (input$x_mode == "fixed") {
@@ -400,44 +402,26 @@ server <- function(input, output, session) {
     }
   )
 
-  live_stats <- reactive({
-    validate(need(is.null(param_error()), ""))
-    spec <- distributions[[input$dist]]
-    par <- live_par()
-    v <- spec$var(par)
-    list(mean = spec$mean(par), sd = if (is.na(v)) NA else sqrt(v), median = spec$q(0.5, par))
-  })
-  output$vb_mean <- renderText(fmt_num(live_stats()$mean))
-  output$vb_sd <- renderText(fmt_num(live_stats()$sd))
-  output$vb_median <- renderText(fmt_num(live_stats()$median))
-
-  output$vb_prob_title <- renderUI({
-    s <- shade()
-    if (is.null(s)) "P(a ≤ X ≤ b)" else sprintf("P(%s ≤ X ≤ %s)", format(s[1]), format(s[2]))
-  })
-  output$vb_prob <- renderText({
-    s <- shade()
-    if (is.null(s)) return("turn on shading")
-    validate(need(is.null(param_error()), ""))
-    spec <- distributions[[input$dist]]
-    par <- live_par()
-    lower <- if (spec$type == "discrete") spec$p(ceiling(s[1]) - 1, par) else spec$p(s[1], par)
-    formatC(spec$p(s[2], par) - lower, digits = 4, format = "f")
-  })
-
   output$summary_table <- renderTable({
     cs <- curves()
+    sh <- shade()
     do.call(rbind, lapply(cs, function(cv) {
       spec <- distributions[[cv$dist]]
       v <- spec$var(cv$par)
-      data.frame(
+      row <- data.frame(
         ` ` = sprintf("<span class='swatch' style='background:%s'></span>", cv$colour),
         Curve = paste0(html_unicode(cv$label), if (cv$live) " <span class='badge bg-primary-subtle text-primary'>live</span>" else ""),
         Mean = fmt_num(spec$mean(cv$par)),
-        Variance = fmt_num(v),
+        SD = fmt_num(if (is.na(v)) NA else sqrt(v)),
         Median = fmt_num(spec$q(0.5, cv$par)),
         check.names = FALSE
       )
+      if (!is.null(sh)) {
+        lower <- if (spec$type == "discrete") spec$p(ceiling(sh[1]) - 1, cv$par) else spec$p(sh[1], cv$par)
+        row[[html_unicode(sprintf("P(%s \u2264 X \u2264 %s)", format(sh[1]), format(sh[2])))]] <-
+          formatC(spec$p(sh[2], cv$par) - lower, digits = 4, format = "f")
+      }
+      row
     }))
   }, sanitize.text.function = identity, striped = TRUE, hover = TRUE, width = "100%",
      class = "table-sm")
@@ -465,31 +449,78 @@ server <- function(input, output, session) {
     par
   })
 
+  bv_live <- reactive({
+    list(dist = input$bv_dist, par = bv_par(), label = bv_label(input$bv_dist, bv_par()), live = TRUE)
+  })
+
+  bv_pins <- reactiveVal(list())
+
+  observeEvent(input$bv_pin, {
+    cur <- bv_pins()
+    lv <- bv_live()
+    if (lv$label %in% vapply(cur, `[[`, character(1), "label")) {
+      showNotification("This surface is already pinned.", type = "message", duration = 3)
+      return()
+    }
+    if (length(cur) >= 5) {
+      showNotification("You can pin up to 5 surfaces. Remove one first.", type = "warning")
+      return()
+    }
+    lv$live <- FALSE
+    bv_pins(c(cur, list(lv)))
+  })
+  observeEvent(input$bv_clear_pins, bv_pins(list()))
+  observeEvent(input$bv_remove_pin, {
+    cur <- bv_pins()
+    i <- as.integer(input$bv_remove_pin)
+    if (i >= 1 && i <= length(cur)) bv_pins(cur[-i])
+  })
+  output$bv_pin_list <- renderUI(pin_list_ui(bv_pins(), "bv_remove_pin", "No pinned surfaces yet."))
+
+  # Pinned surfaces first, then the live one; colours follow that order.
+  bv_surfaces <- reactive({
+    cs <- bv_pins()
+    lv <- bv_live()
+    if (!(lv$label %in% vapply(cs, `[[`, character(1), "label"))) cs <- c(cs, list(lv))
+    for (i in seq_along(cs)) cs[[i]]$colour <- palette_okabe[(i - 1) %% length(palette_okabe) + 1]
+    cs
+  })
+
   bv_ranges <- reactive({
     if (input$bv_axes == "fixed") {
       validate(need(input$bv_x1min < input$bv_x1max && input$bv_x2min < input$bv_x2max,
                     "Fixed axes: each min must be smaller than its max."))
       return(list(x1 = c(input$bv_x1min, input$bv_x1max), x2 = c(input$bv_x2min, input$bv_x2max)))
     }
-    bivariates[[input$bv_dist]]$range(bv_par())
+    rs <- lapply(bv_surfaces(), function(cv) bivariates[[cv$dist]]$range(cv$par))
+    list(x1 = range(unlist(lapply(rs, `[[`, "x1"))), x2 = range(unlist(lapply(rs, `[[`, "x2"))))
   })
 
   bv_data <- reactive({
     r <- bv_ranges()
-    g <- bv_grid(input$bv_dist, bv_par(), r$x1, r$x2, input$bv_n)
-    z <- g$z[is.finite(g$z)]
+    cs <- bv_surfaces()
+    grids <- lapply(cs, function(cv) bv_grid(cv$dist, cv$par, r$x1, r$x2, input$bv_n))
+    auto_max <- max(vapply(seq_along(cs), function(i) {
+      z <- grids[[i]]$z[is.finite(grids[[i]]$z)]
+      if (!length(z)) return(0)
+      if (cs[[i]]$dist == "dirichlet" && max(z) > 4 * stats::quantile(z, 0.95)) {
+        # Densities with a concentration below 1 diverge at the edges of the triangle.
+        stats::quantile(z, 0.95, names = FALSE) * 1.5
+      } else {
+        max(z) * 1.05
+      }
+    }, numeric(1)))
     zmax <- if (input$bv_axes == "fixed" && is.numeric(input$bv_zmax) && input$bv_zmax > 0) {
       input$bv_zmax
-    } else if (input$bv_dist == "dirichlet" && max(z) > 4 * stats::quantile(z, 0.95)) {
-      # Densities with a concentration below 1 diverge at the edges of the triangle.
-      stats::quantile(z, 0.95, names = FALSE) * 1.5
     } else {
-      max(z) * 1.05
+      auto_max
     }
-    g$z[g$z > zmax] <- zmax
-    g$zmax <- zmax
-    g$ranges <- r
-    g
+    for (i in seq_along(grids)) {
+      grids[[i]]$z[grids[[i]]$z > zmax] <- zmax
+      grids[[i]]$colour <- cs[[i]]$colour
+      grids[[i]]$label <- cs[[i]]$label
+    }
+    list(grids = grids, x1 = grids[[1]]$x1, x2 = grids[[1]]$x2, zmax = zmax, ranges = r)
   })
 
   bv_sample <- reactive({
@@ -497,7 +528,10 @@ server <- function(input, output, session) {
     bivariates[[input$bv_dist]]$sample(input$bv_sample_n, bv_par())
   })
 
-  output$bv_title <- renderText(paste0(bivariates[[input$bv_dist]]$label, " density"))
+  output$bv_title <- renderText({
+    n <- length(bv_surfaces())
+    if (n > 1) paste0("Comparing ", n, " densities") else paste0(bivariates[[input$bv_dist]]$label, " density")
+  })
 
   output$bv_plot_area <- renderUI({
     switch(input$bv_view,
@@ -508,21 +542,41 @@ server <- function(input, output, session) {
       contour = plotlyOutput("bv_contour", height = "560px"))
   })
 
+  bv_hover <- "x₁ = %{x:.3f}<br>x₂ = %{y:.3f}<br>f = %{z:.4f}"
+  solid_scale <- function(col) list(c(0, col), c(1, col))
+
   output$bv_surface <- renderPlotly({
-    g <- bv_data()
-    plot_ly(x = g$x1, y = g$x2, z = g$z, type = "surface", colorscale = input$bv_colors,
-            cmin = 0, cmax = g$zmax,
-            contours = list(z = list(show = TRUE, usecolormap = TRUE, project = list(z = TRUE),
-                                     highlightcolor = "#ffffff")),
-            colorbar = list(title = list(text = "f(x₁, x₂)"), len = 0.6, thickness = 14),
-            hovertemplate = "x₁ = %{x:.3f}<br>x₂ = %{y:.3f}<br>f = %{z:.4f}<extra></extra>") |>
+    d <- bv_data()
+    single <- length(d$grids) == 1
+    p <- plot_ly()
+    for (g in d$grids) {
+      p <- if (single) {
+        add_surface(p, x = g$x1, y = g$x2, z = g$z, colorscale = input$bv_colors,
+                    cmin = 0, cmax = d$zmax, name = g$label,
+                    contours = list(z = list(show = TRUE, usecolormap = TRUE, project = list(z = TRUE),
+                                             highlightcolor = "#ffffff")),
+                    colorbar = list(title = list(text = "f(x₁, x₂)"), len = 0.6, thickness = 14),
+                    hovertemplate = paste0(bv_hover, "<extra></extra>"))
+      } else {
+        # One flat colour per surface, partly transparent so that overlaps stay visible.
+        # The near-zero floor is dropped, otherwise each surface's floor hides the others.
+        z <- g$z
+        z[z < 0.02 * d$zmax] <- NA
+        add_surface(p, x = g$x1, y = g$x2, z = z, colorscale = solid_scale(g$colour),
+                    showscale = FALSE, opacity = 0.7, name = g$label, showlegend = TRUE,
+                    lighting = list(ambient = 0.55, diffuse = 0.8, specular = 0.15),
+                    hovertemplate = paste0(bv_hover, "<extra>", g$label, "</extra>"))
+      }
+    }
+    p |>
       layout(
-        uirevision = input$bv_dist,
+        uirevision = "bv",
         margin = list(l = 0, r = 0, t = 10, b = 0),
+        legend = list(orientation = "h", x = 0, y = -0.02, font = list(size = 11)),
         scene = list(
-          xaxis = list(title = "x₁", range = g$ranges$x1),
-          yaxis = list(title = "x₂", range = g$ranges$x2),
-          zaxis = list(title = "density", range = c(0, g$zmax)),
+          xaxis = list(title = "x₁", range = d$ranges$x1),
+          yaxis = list(title = "x₂", range = d$ranges$x2),
+          zaxis = list(title = "density", range = c(0, d$zmax)),
           aspectmode = "manual", aspectratio = list(x = 1, y = 1, z = 0.65),
           camera = list(eye = list(x = 1.55, y = -1.55, z = 0.95))
         ),
@@ -532,30 +586,60 @@ server <- function(input, output, session) {
   })
 
   output$bv_contour <- renderPlotly({
-    g <- bv_data()
-    p <- plot_ly(x = g$x1, y = g$x2, z = g$z, type = "contour", colorscale = input$bv_colors,
-                 zauto = FALSE, zmin = 0, zmax = g$zmax, ncontours = 18,
-                 contours = list(coloring = "heatmap", showlines = TRUE),
-                 line = list(color = "rgba(255,255,255,0.45)", width = 0.6),
-                 showscale = input$bv_view == "contour",
-                 hovertemplate = "x₁ = %{x:.3f}<br>x₂ = %{y:.3f}<br>f = %{z:.4f}<extra></extra>")
+    d <- bv_data()
+    single <- length(d$grids) == 1
+    p <- plot_ly()
+    for (g in d$grids) {
+      p <- if (single) {
+        add_contour(p, x = g$x1, y = g$x2, z = g$z, colorscale = input$bv_colors,
+                    zauto = FALSE, zmin = 0, zmax = d$zmax, ncontours = 18,
+                    contours = list(coloring = "heatmap", showlines = TRUE),
+                    line = list(color = "rgba(255,255,255,0.45)", width = 0.6),
+                    showscale = input$bv_view == "contour", name = g$label,
+                    hovertemplate = paste0(bv_hover, "<extra></extra>"))
+      } else {
+        add_contour(p, x = g$x1, y = g$x2, z = g$z, colorscale = solid_scale(g$colour),
+                    autocontour = TRUE, ncontours = 10, showscale = FALSE,
+                    contours = list(coloring = "lines"), line = list(width = 1.6),
+                    name = g$label, showlegend = TRUE,
+                    hovertemplate = paste0(bv_hover, "<extra>", g$label, "</extra>"))
+      }
+    }
     s <- bv_sample()
     if (!is.null(s)) {
-      p <- p |> add_markers(x = s[, 1], y = s[, 2], inherit = FALSE, name = "sample",
+      p <- p |> add_markers(x = s[, 1], y = s[, 2], name = "sample",
                             marker = list(size = 4, color = "rgba(15,23,42,0.45)",
                                           line = list(width = 0)),
                             hoverinfo = "skip", showlegend = FALSE)
     }
     p |>
       layout(
-        uirevision = input$bv_dist,
+        uirevision = "bv",
         margin = list(l = 50, r = 10, t = 10, b = 45),
-        xaxis = list(title = "x₁", range = g$ranges$x1, zeroline = FALSE),
-        yaxis = list(title = "x₂", range = g$ranges$x2, zeroline = FALSE),
+        legend = list(orientation = "h", x = 0, y = -0.15, font = list(size = 11)),
+        xaxis = list(title = "x₁", range = d$ranges$x1, zeroline = FALSE),
+        yaxis = list(title = "x₂", range = d$ranges$x2, zeroline = FALSE),
+        plot_bgcolor = if (single) NULL else "#ffffff",
         paper_bgcolor = "rgba(0,0,0,0)"
       ) |>
       config(displaylogo = FALSE)
   })
+
+  output$bv_summary_table <- renderTable({
+    do.call(rbind, lapply(bv_surfaces(), function(cv) {
+      m <- bv_moments(cv$dist, cv$par)
+      sds <- sqrt(diag(m$cov))
+      data.frame(
+        ` ` = sprintf("<span class='swatch' style='background:%s'></span>", cv$colour),
+        Surface = paste0(html_unicode(cv$label), if (cv$live) " <span class='badge bg-primary-subtle text-primary'>live</span>" else ""),
+        `E[X1]` = fmt_num(m$mean[1]), `E[X2]` = fmt_num(m$mean[2]),
+        `SD(X1)` = fmt_num(sds[1]), `SD(X2)` = fmt_num(sds[2]),
+        `Corr(X1, X2)` = fmt_num(m$cov[1, 2] / prod(sds)),
+        check.names = FALSE
+      )
+    }))
+  }, sanitize.text.function = identity, striped = TRUE, hover = TRUE, width = "100%",
+     class = "table-sm")
 
   observeEvent(input$bv_freeze, {
     g <- bv_data()
@@ -584,22 +668,7 @@ server <- function(input, output, session) {
     tex_vec <- function(v) sprintf("\\begin{pmatrix} %s \\\\ %s \\end{pmatrix}", tex_num(v[1]), tex_num(v[2]))
     tex_mat <- function(m) sprintf("\\begin{pmatrix} %s & %s \\\\ %s & %s \\end{pmatrix}",
                                    tex_num(m[1, 1]), tex_num(m[1, 2]), tex_num(m[2, 1]), tex_num(m[2, 2]))
-    m <- switch(input$bv_dist,
-      bvn = list(mean = c(p$mu1, p$mu2), cov = bvn_sigma(p)),
-      bvt = list(mean = if (p$nu > 1) c(p$mu1, p$mu2) else c(NA, NA),
-                 cov = if (p$nu > 2) p$nu / (p$nu - 2) * bvn_sigma(p) else matrix(if (p$nu > 1) Inf else NA, 2, 2)),
-      dirichlet = {
-        a <- c(p$a1, p$a2, p$a3); a0 <- sum(a)
-        cv <- matrix(c(a[1] * (a0 - a[1]), -a[1] * a[2], -a[1] * a[2], a[2] * (a0 - a[2])), 2) /
-          (a0^2 * (a0 + 1))
-        list(mean = a[1:2] / a0, cov = cv)
-      },
-      mixture = {
-        m1 <- c(p$m1x, p$m1y); m2 <- c(p$m2x, p$m2y)
-        S <- bvn_sigma(list(s1 = p$s, s2 = p$s, rho = p$rho))
-        list(mean = p$w * m1 + (1 - p$w) * m2, cov = S + p$w * (1 - p$w) * tcrossprod(m1 - m2))
-      }
-    )
+    m <- bv_moments(input$bv_dist, p)
     corr <- m$cov[1, 2] / sqrt(m$cov[1, 1] * m$cov[2, 2])
     withMathJax(tagList(
       p(paste0("$$E[\\mathbf{X}] = ", tex_vec(m$mean), "$$")),

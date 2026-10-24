@@ -137,3 +137,32 @@ bv_grid <- function(dist_id, par, xr, yr, n = 80) {
   z[!is.finite(z)] <- NA
   list(x1 = x1, x2 = x2, z = matrix(z, nrow = n, ncol = n, byrow = TRUE))
 }
+
+bv_label <- function(dist_id, par) {
+  spec <- bivariates[[dist_id]]
+  vals <- vapply(spec$params, function(prm) {
+    paste0(param_symbol(prm), " = ", format(signif(par[[prm$id]], 4)))
+  }, character(1))
+  paste0(spec$label, "(", paste(vals, collapse = ", "), ")")
+}
+
+# Mean vector and covariance matrix (NA = undefined, Inf = infinite).
+bv_moments <- function(dist_id, p) {
+  switch(dist_id,
+    bvn = list(mean = c(p$mu1, p$mu2), cov = bvn_sigma(p)),
+    bvt = list(mean = if (p$nu > 1) c(p$mu1, p$mu2) else c(NA, NA),
+               cov = if (p$nu > 2) p$nu / (p$nu - 2) * bvn_sigma(p)
+                     else matrix(if (p$nu > 1) Inf else NA, 2, 2)),
+    dirichlet = {
+      a <- c(p$a1, p$a2, p$a3); a0 <- sum(a)
+      cv <- matrix(c(a[1] * (a0 - a[1]), -a[1] * a[2], -a[1] * a[2], a[2] * (a0 - a[2])), 2) /
+        (a0^2 * (a0 + 1))
+      list(mean = a[1:2] / a0, cov = cv)
+    },
+    mixture = {
+      m1 <- c(p$m1x, p$m1y); m2 <- c(p$m2x, p$m2y)
+      S <- bvn_sigma(list(s1 = p$s, s2 = p$s, rho = p$rho))
+      list(mean = p$w * m1 + (1 - p$w) * m2, cov = S + p$w * (1 - p$w) * tcrossprod(m1 - m2))
+    }
+  )
+}

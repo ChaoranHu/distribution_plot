@@ -19,7 +19,7 @@ An R Shiny app for exploring probability distributions, deployed at
 * Fixed axes: set the x and y limits by hand, or press "Freeze current axes" so the
   view stops rescaling while you move a slider.
 * Shade $P(a \le X \le b)$ and read its value, and overlay a histogram of a random sample.
-* Summary cards (mean, standard deviation, median) and a table for every curve on the plot.
+* A compact table with the mean, standard deviation, median and shaded probability of every curve on the plot.
 * The pdf or pmf formula in LaTeX, with the notation explained.
 * Download the current plot as PNG.
 
@@ -30,6 +30,7 @@ An R Shiny app for exploring probability distributions, deployed at
 * Rotatable 3-D density surface (plotly) next to a contour map, with an optional random
   sample drawn on the contour map.
 * Fixed or frozen axes, colour scale and grid resolution controls.
+* Compare: pin surfaces to overlay up to 6 bivariate densities, from the same or different distributions, with a table of their means, standard deviations and correlations.
 * Formula, mean vector, covariance matrix and correlation.
 
 ## Running locally
