@@ -11,14 +11,15 @@ An R Shiny app for exploring probability distributions, deployed at
   log-normal, exponential, gamma, inverse gamma, chi-squared, F, beta, Weibull.
 * 6 discrete distributions: binomial, Poisson, geometric, negative binomial,
   hypergeometric, discrete uniform.
-* Six views: density or mass function, CDF, density and CDF side by side, survival
-  function, hazard function and quantile function.
+* Six views, switched with the buttons above the plot: density or mass function, CDF,
+  density and CDF side by side, survival function, hazard function and quantile function.
 * Compare curves: pin the current curve and keep changing the parameters, or even the
   distribution, to overlay up to 9 curves (for example a binomial pmf and its normal
   approximation).
 * Fixed axes: set the x and y limits by hand, or press "Freeze current axes" so the
   view stops rescaling while you move a slider.
-* Shade $P(a \le X \le b)$ and read its value, and overlay a histogram of a random sample.
+* Shade $P(a \le X \le b)$ and read its value on the plot, and overlay a histogram of a random sample.
+  A dotted line marks the mean of the live curve.
 * A compact table with the mean, standard deviation, median and shaded probability of every curve on the plot.
 * The pdf or pmf formula in LaTeX, with the notation explained.
 * Download the current plot as PNG.
@@ -32,6 +33,9 @@ An R Shiny app for exploring probability distributions, deployed at
 * Fixed or frozen axes, colour scale and grid resolution controls.
 * Compare: pin surfaces to overlay up to 6 bivariate densities, from the same or different distributions, with a table of their means, standard deviations and correlations.
 * Formula, mean vector, covariance matrix and correlation.
+
+**Light and dark mode**: the sun and moon button in the navigation bar switches the whole
+app, plots included, between a light and a dark theme.
 
 ## Running locally
 

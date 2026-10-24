@@ -10,14 +10,24 @@ fun_labels <- c(pdf = "Density / mass", cdf = "Cumulative distribution F(x)",
 # Categorical curve colours, assigned in this fixed order (pinned curves first, then
 # the live curve). The first eight are checked for colour-blind separation; the ninth
 # is a neutral slate for the last possible slot.
+# The dark mode column is the same hues stepped for the dark surface.
 palette_curves <- c("#2A78D6", "#EB6834", "#1BAF7A", "#EDA100",
                     "#E87BA4", "#008300", "#6250D6", "#E34948", "#475569")
+palette_curves_dark <- c("#3987E5", "#D95926", "#199E70", "#C98500",
+                         "#D55181", "#008300", "#9085E9", "#E66767", "#94A3B8")
+curve_palette <- function(dark = FALSE) if (isTRUE(dark)) palette_curves_dark else palette_curves
 
-# Ink colours shared by the ggplot theme and the plotly layouts.
-ink <- list(text = "#1E293B", muted = "#64748B", grid = "#E7EBF2", axis = "#CBD5E1")
+# Ink colours shared by the ggplot theme and the plotly layouts, for each colour mode.
+ink_light <- list(text = "#1E293B", muted = "#64748B", grid = "#E7EBF2", axis = "#CBD5E1",
+                  surface = "#FFFFFF", scene = "#F7F9FC", scene_grid = "#DCE3EE")
+ink_dark <- list(text = "#E2E8F0", muted = "#94A3B8", grid = "#223049", axis = "#334462",
+                 surface = "#131C31", scene = "#18233D", scene_grid = "#2A3957")
+ink_for <- function(dark = FALSE) if (isTRUE(dark)) ink_dark else ink_light
+ink <- ink_light
 
 # ggplot theme matching the app's cards.
-theme_explorer <- function(base_size = 15) {
+theme_explorer <- function(base_size = 15, dark = FALSE) {
+  ink <- ink_for(dark)
   theme_minimal(base_size = base_size) +
     theme(
       text = element_text(colour = ink$text),
@@ -39,7 +49,7 @@ theme_explorer <- function(base_size = 15) {
       legend.text = element_text(size = rel(0.78), colour = ink$text),
       legend.key.width = unit(22, "pt"), legend.key.height = unit(14, "pt"),
       plot.margin = margin(10, 14, 8, 8),
-      plot.background = element_rect(fill = "white", colour = NA)
+      plot.background = element_rect(fill = ink$surface, colour = NA)
     )
 }
 
@@ -97,7 +107,11 @@ robust_ymax <- function(y) {
 #   ylim    NULL for automatic, or c(lo, hi)
 #   shade   NULL or c(a, b): shade P(a <= X <= b) for the live curve
 #   sample  NULL or numeric vector drawn from the live curve
-make_uni_plot <- function(curves, fun, xlim, ylim = NULL, shade = NULL, sample = NULL) {
+#   dark    draw for the dark colour mode
+#   title   show the function name above the plot
+make_uni_plot <- function(curves, fun, xlim, ylim = NULL, shade = NULL, sample = NULL,
+                          dark = FALSE, title = TRUE) {
+  ink <- ink_for(dark)
   labels <- vapply(curves, `[[`, character(1), "label")
   colours <- stats::setNames(vapply(curves, `[[`, character(1), "colour"), labels)
   widths <- stats::setNames(ifelse(vapply(curves, `[[`, logical(1), "live"), 1.5, 1), labels)
@@ -145,7 +159,7 @@ make_uni_plot <- function(curves, fun, xlim, ylim = NULL, shade = NULL, sample =
     } else {
       sdf <- sdf[sdf$x >= xlim[1] & sdf$x <= xlim[2], , drop = FALSE]
       g <- g + geom_histogram(data = sdf, aes(x, y = after_stat(count / length(sample) / width)),
-                              bins = 40, fill = live$colour, alpha = 0.2, colour = "white",
+                              bins = 40, fill = live$colour, alpha = 0.2, colour = ink$surface,
                               linewidth = 0.4,
                               boundary = xlim[1])
     }
@@ -169,6 +183,18 @@ make_uni_plot <- function(curves, fun, xlim, ylim = NULL, shade = NULL, sample =
                             fill = lv$colour, alpha = 0.25, width = 0.8)
         }
       }
+      # Write the probability inside the shaded region.
+      lower <- if (spec$type == "discrete") spec$p(ceiling(shade[1]) - 1, lv$par) else spec$p(shade[1], lv$par)
+      prob <- spec$p(shade[2], lv$par) - lower
+      y_mid <- 0.45 * max(spec$d(if (spec$type == "discrete") ceiling(a):max(ceiling(a), floor(b))
+                                 else seq(a, b, length.out = 200), lv$par), na.rm = TRUE)
+      if (is.finite(prob) && is.finite(y_mid)) {
+        g <- g + annotate("label", x = (a + b) / 2, y = y_mid,
+                          label = sprintf("P(%s \u2264 X \u2264 %s) = %.4f",
+                                          format(shade[1]), format(shade[2]), prob),
+                          size = 3.8, colour = ink$text, fill = scales::alpha(ink$surface, 0.88),
+                          label.size = 0, label.padding = unit(0.35, "lines"), fontface = "bold")
+      }
     }
     if (fun %in% c("cdf", "surv")) {
       g <- g + geom_vline(xintercept = shade, linetype = "dashed", colour = lv$colour, alpha = 0.6)
@@ -182,6 +208,16 @@ make_uni_plot <- function(curves, fun, xlim, ylim = NULL, shade = NULL, sample =
     if (nrow(lf)) g <- g + geom_area(data = lf, aes(x, y), fill = live_cont[[1]]$colour, alpha = 0.10)
   }
 
+  # A dotted line at the mean of the live curve.
+  live_cv <- Filter(function(cv) cv$live, curves)
+  if (fun == "pdf" && length(live_cv)) {
+    lv <- live_cv[[1]]
+    mu <- distributions[[lv$dist]]$mean(lv$par)
+    if (is.finite(mu) && mu >= xlim[1] && mu <= xlim[2]) {
+      g <- g + geom_vline(xintercept = mu, colour = ink$muted, linetype = "dotted", linewidth = 0.6)
+    }
+  }
+
   if (!is.null(cont_df)) {
     g <- g + geom_line(data = cont_df, aes(x, y, colour = curve, linewidth = curve),
                        lineend = "round", na.rm = TRUE)
@@ -190,7 +226,7 @@ make_uni_plot <- function(curves, fun, xlim, ylim = NULL, shade = NULL, sample =
     g <- g +
       geom_segment(data = lolli_df, aes(x = x, xend = x, y = 0, yend = y, colour = curve),
                    linewidth = 0.8, na.rm = TRUE) +
-      geom_point(data = lolli_df, aes(x, y, fill = curve), shape = 21, colour = "white",
+      geom_point(data = lolli_df, aes(x, y, fill = curve), shape = 21, colour = ink$surface,
                  stroke = 0.7, size = 2.6, na.rm = TRUE)
   }
   if (!is.null(step_df)) {
@@ -198,7 +234,7 @@ make_uni_plot <- function(curves, fun, xlim, ylim = NULL, shade = NULL, sample =
       geom_step(data = step_df, aes(x, y, colour = curve, linewidth = curve),
                 direction = if (fun == "quantile") "vh" else "hv", na.rm = TRUE)
     if (fun != "quantile") {
-      g <- g + geom_point(data = step_df, aes(x, y, fill = curve), shape = 21, colour = "white",
+      g <- g + geom_point(data = step_df, aes(x, y, fill = curve), shape = 21, colour = ink$surface,
                           stroke = 0.6, size = 2.1, na.rm = TRUE)
     }
   }
@@ -225,8 +261,9 @@ make_uni_plot <- function(curves, fun, xlim, ylim = NULL, shade = NULL, sample =
     scale_colour_manual(values = colours, breaks = labels, name = NULL) +
     scale_fill_manual(values = colours, breaks = labels, guide = "none") +
     scale_linewidth_manual(values = widths, breaks = labels, guide = "none") +
-    labs(x = if (fun == "quantile") "u" else "x", y = y_title, title = fun_labels[[fun]]) +
-    theme_explorer()
+    labs(x = if (fun == "quantile") "u" else "x", y = y_title,
+         title = if (title) fun_labels[[fun]] else NULL) +
+    theme_explorer(dark = dark)
   attr(g, "ylim") <- ylim
   g
 }
