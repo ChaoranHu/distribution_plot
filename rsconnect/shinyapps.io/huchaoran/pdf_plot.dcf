@@ -1,0 +1,13 @@
+name: pdf_plot
+title:
+username:
+account: huchaoran
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 8786913
+bundleId: 7059353
+url: https://huchaoran.shinyapps.io/pdf_plot/
+when: 1680820466.70749
+lastSyncTime: 1680820466.7075
+asMultiple: FALSE
+asStatic: FALSE
