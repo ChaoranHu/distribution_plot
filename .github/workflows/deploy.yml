@@ -38,10 +38,15 @@ jobs:
           SHINYAPPS_TOKEN: ${{ secrets.SHINYAPPS_TOKEN }}
           SHINYAPPS_SECRET: ${{ secrets.SHINYAPPS_SECRET }}
         run: |
+          # Fail early with a clear message if a secret is missing or looks wrong
+          token  <- trimws(Sys.getenv("SHINYAPPS_TOKEN"))
+          secret <- trimws(Sys.getenv("SHINYAPPS_SECRET"))
+          if (!nzchar(token) || !nzchar(secret)) stop("SHINYAPPS_TOKEN or SHINYAPPS_SECRET is not set")
+          message("token length: ", nchar(token), ", secret length: ", nchar(secret), " (secret is normally 40)")
           rsconnect::setAccountInfo(
             name   = Sys.getenv("SHINYAPPS_ACCOUNT"),
-            token  = Sys.getenv("SHINYAPPS_TOKEN"),
-            secret = Sys.getenv("SHINYAPPS_SECRET")
+            token  = token,
+            secret = secret
           )
           rsconnect::deployApp(
             appDir      = ".",
