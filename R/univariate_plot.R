@@ -7,8 +7,41 @@ fun_labels <- c(pdf = "Density / mass", cdf = "Cumulative distribution F(x)",
                 surv = "Survival 1 − F(x)", hazard = "Hazard h(x)",
                 quantile = "Quantile F⁻¹(u)")
 
-palette_okabe <- c("#0072B2", "#D55E00", "#009E73", "#CC79A7",
-                   "#E69F00", "#56B4E9", "#332288", "#882255", "#444444")
+# Categorical curve colours, assigned in this fixed order (pinned curves first, then
+# the live curve). The first eight are checked for colour-blind separation; the ninth
+# is a neutral slate for the last possible slot.
+palette_curves <- c("#2A78D6", "#EB6834", "#1BAF7A", "#EDA100",
+                    "#E87BA4", "#008300", "#6250D6", "#E34948", "#475569")
+
+# Ink colours shared by the ggplot theme and the plotly layouts.
+ink <- list(text = "#1E293B", muted = "#64748B", grid = "#E7EBF2", axis = "#CBD5E1")
+
+# ggplot theme matching the app's cards.
+theme_explorer <- function(base_size = 15) {
+  theme_minimal(base_size = base_size) +
+    theme(
+      text = element_text(colour = ink$text),
+      plot.title = element_text(face = "bold", size = rel(0.85), colour = ink$text,
+                                margin = margin(b = 4)),
+      plot.title.position = "plot",
+      axis.title = element_text(colour = ink$muted, size = rel(0.85)),
+      axis.title.x = element_text(margin = margin(t = 8)),
+      axis.title.y = element_text(margin = margin(r = 8)),
+      axis.text = element_text(colour = ink$muted, size = rel(0.8)),
+      axis.line.x = element_line(colour = ink$axis, linewidth = 0.5),
+      axis.ticks.x = element_line(colour = ink$axis, linewidth = 0.5),
+      axis.ticks.length.x = unit(4, "pt"),
+      panel.grid.minor = element_blank(),
+      panel.grid.major.x = element_blank(),
+      panel.grid.major.y = element_line(colour = ink$grid, linewidth = 0.5),
+      legend.position = "top", legend.justification = "left",
+      legend.direction = "vertical", legend.margin = margin(0, 0, 2, 0),
+      legend.text = element_text(size = rel(0.78), colour = ink$text),
+      legend.key.width = unit(22, "pt"), legend.key.height = unit(14, "pt"),
+      plot.margin = margin(10, 14, 8, 8),
+      plot.background = element_rect(fill = "white", colour = NA)
+    )
+}
 
 # Evaluate one function of one curve over the x limits.
 curve_values <- function(cv, fun, xlim, n_grid = 801) {
@@ -67,7 +100,7 @@ robust_ymax <- function(y) {
 make_uni_plot <- function(curves, fun, xlim, ylim = NULL, shade = NULL, sample = NULL) {
   labels <- vapply(curves, `[[`, character(1), "label")
   colours <- stats::setNames(vapply(curves, `[[`, character(1), "colour"), labels)
-  widths <- stats::setNames(ifelse(vapply(curves, `[[`, logical(1), "live"), 1.4, 0.9), labels)
+  widths <- stats::setNames(ifelse(vapply(curves, `[[`, logical(1), "live"), 1.5, 1), labels)
 
   n_disc <- sum(vapply(curves, function(cv) distributions[[cv$dist]]$type == "discrete", logical(1)))
   disc_i <- 0
@@ -108,11 +141,12 @@ make_uni_plot <- function(curves, fun, xlim, ylim = NULL, shade = NULL, sample =
       tab <- as.data.frame(table(sample) / length(sample), stringsAsFactors = FALSE)
       names(tab) <- c("x", "y")
       tab$x <- as.numeric(tab$x)
-      g <- g + geom_col(data = tab, aes(x, y), fill = live$colour, alpha = 0.22, width = 0.7)
+      g <- g + geom_col(data = tab, aes(x, y), fill = live$colour, alpha = 0.2, width = 0.7)
     } else {
       sdf <- sdf[sdf$x >= xlim[1] & sdf$x <= xlim[2], , drop = FALSE]
       g <- g + geom_histogram(data = sdf, aes(x, y = after_stat(count / length(sample) / width)),
-                              bins = 40, fill = live$colour, alpha = 0.22, colour = NA,
+                              bins = 40, fill = live$colour, alpha = 0.2, colour = "white",
+                              linewidth = 0.4,
                               boundary = xlim[1])
     }
   }
@@ -141,20 +175,32 @@ make_uni_plot <- function(curves, fun, xlim, ylim = NULL, shade = NULL, sample =
     }
   }
 
+  # Soft fill under the live density so it reads as the curve in focus.
+  live_cont <- Filter(function(cv) cv$live && distributions[[cv$dist]]$type == "continuous", curves)
+  if (fun == "pdf" && length(live_cont) && !is.null(cont_df) && is.null(sample) && is.null(shade)) {
+    lf <- cont_df[cont_df$curve == live_cont[[1]]$label & !is.na(cont_df$y), ]
+    if (nrow(lf)) g <- g + geom_area(data = lf, aes(x, y), fill = live_cont[[1]]$colour, alpha = 0.10)
+  }
+
   if (!is.null(cont_df)) {
-    g <- g + geom_line(data = cont_df, aes(x, y, colour = curve, linewidth = curve), na.rm = TRUE)
+    g <- g + geom_line(data = cont_df, aes(x, y, colour = curve, linewidth = curve),
+                       lineend = "round", na.rm = TRUE)
   }
   if (!is.null(lolli_df)) {
     g <- g +
       geom_segment(data = lolli_df, aes(x = x, xend = x, y = 0, yend = y, colour = curve),
                    linewidth = 0.8, na.rm = TRUE) +
-      geom_point(data = lolli_df, aes(x, y, colour = curve), size = 2.2, na.rm = TRUE)
+      geom_point(data = lolli_df, aes(x, y, fill = curve), shape = 21, colour = "white",
+                 stroke = 0.7, size = 2.6, na.rm = TRUE)
   }
   if (!is.null(step_df)) {
     g <- g +
       geom_step(data = step_df, aes(x, y, colour = curve, linewidth = curve),
                 direction = if (fun == "quantile") "vh" else "hv", na.rm = TRUE)
-    if (fun != "quantile") g <- g + geom_point(data = step_df, aes(x, y, colour = curve), size = 1.6, na.rm = TRUE)
+    if (fun != "quantile") {
+      g <- g + geom_point(data = step_df, aes(x, y, fill = curve), shape = 21, colour = "white",
+                          stroke = 0.6, size = 2.1, na.rm = TRUE)
+    }
   }
 
   if (is.null(ylim)) {
@@ -177,16 +223,10 @@ make_uni_plot <- function(curves, fun, xlim, ylim = NULL, shade = NULL, sample =
 
   g <- g + coord +
     scale_colour_manual(values = colours, breaks = labels, name = NULL) +
+    scale_fill_manual(values = colours, breaks = labels, guide = "none") +
     scale_linewidth_manual(values = widths, breaks = labels, guide = "none") +
     labs(x = if (fun == "quantile") "u" else "x", y = y_title, title = fun_labels[[fun]]) +
-    theme_minimal(base_size = 15) +
-    theme(legend.position = "bottom", legend.direction = "vertical",
-          legend.text = element_text(size = 12),
-          plot.title = element_text(face = "bold", size = 14, colour = "#334155"),
-          panel.grid.minor = element_blank(),
-          panel.grid.major = element_line(colour = "#E2E8F0"),
-          axis.title = element_text(colour = "#475569"),
-          plot.background = element_rect(fill = "white", colour = NA))
+    theme_explorer()
   attr(g, "ylim") <- ylim
   g
 }
