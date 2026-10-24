@@ -28,11 +28,9 @@ app_theme <- bs_theme(
   "border-radius" = "0.6rem",
   "border-radius-lg" = "0.9rem",
   "card-border-radius" = "1rem",
+  "card-cap-bg" = "#FFFFFF",
   "border-color" = "#E3E8F0",
-  "link-decoration" = "none",
-  "body-bg-dark" = "#0B1222",
-  "body-color-dark" = "#E2E8F0",
-  "border-color-dark" = "#223049"
+  "link-decoration" = "none"
 )
 
 # A small bell curve used as the app logo.
@@ -61,12 +59,12 @@ param_sliders <- function(registry, id_fun, tabs_id) {
   do.call(navset_hidden, c(panels, list(id = tabs_id)))
 }
 
-pin_list_ui <- function(items, remove_input, empty_text, palette = palette_curves) {
+pin_list_ui <- function(items, remove_input, empty_text) {
   if (!length(items)) return(p(class = "small text-muted fst-italic", empty_text))
   tags$div(class = "pin-list", lapply(seq_along(items), function(i) {
     tags$div(
       class = "pin-row",
-      tags$span(class = "swatch", style = paste0("background:", palette[i])),
+      tags$span(class = "swatch", style = paste0("background:", palette_curves[i])),
       tags$span(class = "pin-label", items[[i]]$label),
       tags$button(class = "btn btn-sm btn-link pin-remove", title = "Remove",
                   onclick = sprintf("Shiny.setInputValue('%s', %d, {priority: 'event'})", remove_input, i),
@@ -76,36 +74,26 @@ pin_list_ui <- function(items, remove_input, empty_text, palette = palette_curve
 }
 
 # Single hue sequential scales in the app palette; other names go to plotly as is.
-# Low densities sit near the surface colour, so dark mode runs from dark to light.
 seq_scales <- list(
   Ocean = c("#F4F8FE", "#CDE2FB", "#9EC5F4", "#6DA7EC", "#3987E5", "#256ABF", "#184F95", "#0D366B"),
   Ember = c("#FFF7F2", "#FDDCC9", "#F9B596", "#F48B62", "#EB6834", "#C9501F", "#9C3C15", "#6E2A0E")
 )
-seq_scales_dark <- list(
-  Ocean = c("#131C31", "#104281", "#1C5CAB", "#2A78D6", "#5598E7", "#86B6EF", "#B7D3F6", "#E6F0FD"),
-  Ember = c("#1C1512", "#6E2A0E", "#9C3C15", "#C9501F", "#EB6834", "#F48B62", "#F9B596", "#FDDCC9")
-)
-bv_colorscale <- function(name, dark = FALSE) {
-  cols <- (if (isTRUE(dark)) seq_scales_dark else seq_scales)[[name]]
+bv_colorscale <- function(name) {
+  cols <- seq_scales[[name]]
   if (is.null(cols)) return(name)
   lapply(seq_along(cols), function(i) list((i - 1) / (length(cols) - 1), cols[i]))
 }
 
-plotly_font <- function(ink) list(family = "Inter, system-ui, sans-serif", size = 12, color = ink$text)
-plotly_axis <- function(ink, title, ...) {
+plotly_font <- list(family = "Inter, system-ui, sans-serif", size = 12, color = ink$text)
+plotly_axis <- function(title, ...) {
   list(..., gridcolor = ink$grid, linecolor = ink$axis, zeroline = FALSE,
        tickfont = list(color = ink$muted), title = list(text = title, font = list(color = ink$muted)))
 }
 
-scene_axis <- function(ink, title, ...) {
-  list(..., gridcolor = ink$scene_grid, zerolinecolor = ink$axis, showbackground = TRUE,
-       backgroundcolor = ink$scene, tickfont = list(color = ink$muted, size = 11),
+scene_axis <- function(title, ...) {
+  list(..., gridcolor = "#DCE3EE", zerolinecolor = "#C3CDDC", showbackground = TRUE,
+       backgroundcolor = "#F7F9FC", tickfont = list(color = ink$muted, size = 11),
        title = list(text = title, font = list(color = ink$muted)))
-}
-
-# A row of pill buttons that behaves like radioButtons.
-segmented <- function(id, choices, selected) {
-  div(class = "segmented", radioButtons(id, NULL, choices = choices, selected = selected, inline = TRUE))
 }
 
 info_tip <- function(...) tooltip(icon("circle-info", class = "text-muted"), ...)
@@ -120,7 +108,6 @@ html_unicode <- function(x) {
 
 uni_sidebar <- sidebar(
   width = 340,
-  title = "Univariate settings",
   accordion(
     multiple = TRUE,
     open = c("Distribution", "Compare", "Axes"),
@@ -141,6 +128,15 @@ uni_sidebar <- sidebar(
                    class = "btn-primary w-100 mb-2"),
       uiOutput("pin_list"),
       actionLink("clear_pins", "Clear all pinned curves", icon = icon("trash-can"))
+    ),
+    accordion_panel(
+      "View", icon = icon("eye"),
+      radioButtons("view", NULL,
+                   choices = c("Density / mass" = "pdf", "CDF" = "cdf",
+                               "Density and CDF side by side" = "both",
+                               "Survival function" = "surv", "Hazard function" = "hazard",
+                               "Quantile function" = "quantile"),
+                   selected = "pdf")
     ),
     accordion_panel(
       "Axes", icon = icon("ruler-combined"),
@@ -182,13 +178,9 @@ uni_main <- tagList(
     full_screen = TRUE,
     min_height = "540px",
     card_header(
-      class = "plot-header",
+      class = "plot-header d-flex justify-content-between align-items-center gap-2",
       uiOutput("plot_title"),
-      div(class = "header-tools",
-          segmented("view", c("Density" = "pdf", "CDF" = "cdf", "Both" = "both",
-                              "Survival" = "surv", "Hazard" = "hazard", "Quantile" = "quantile"),
-                    "pdf"),
-          downloadButton("download_plot", "PNG", class = "btn-sm btn-light"))
+      downloadButton("download_plot", "PNG", class = "btn-sm btn-light")
     ),
     card_body(class = "pt-2", uiOutput("plot_area"))
   ),
@@ -202,10 +194,9 @@ uni_main <- tagList(
 
 bv_sidebar <- sidebar(
   width = 340,
-  title = "Bivariate settings",
   accordion(
     multiple = TRUE,
-    open = c("Distribution", "Compare"),
+    open = c("Distribution", "Compare", "Display"),
     accordion_panel(
       "Distribution", icon = icon("mountain"),
       selectInput("bv_dist", NULL, choices = bv_choices, selected = "bvn"),
@@ -222,6 +213,9 @@ bv_sidebar <- sidebar(
     ),
     accordion_panel(
       "Display", icon = icon("cube"),
+      radioButtons("bv_view", NULL,
+                   c("3-D surface and contour" = "both", "3-D surface" = "surface",
+                     "Contour map" = "contour"), selected = "both"),
       selectInput("bv_colors", "Colour scale (single surface)",
                   c("Ocean", "Ember", "Viridis", "Cividis", "YlGnBu", "Portland", "Hot")),
       sliderInput("bv_n", "Grid resolution", min = 30, max = 150, value = 80, step = 10,
@@ -252,13 +246,7 @@ bv_main <- tagList(
   card(
     full_screen = TRUE,
     min_height = "560px",
-    card_header(
-      class = "plot-header",
-      uiOutput("bv_title"),
-      div(class = "header-tools",
-          segmented("bv_view", c("Surface + contour" = "both", "Surface" = "surface",
-                                 "Contour" = "contour"), "both"))
-    ),
+    card_header(class = "plot-header", uiOutput("bv_title")),
     card_body(uiOutput("bv_plot_area"))
   ),
   card(card_header(icon("table-list"), "Summary of every surface on the plot"),
@@ -300,7 +288,7 @@ about_panel <- div(
 )
 
 ui <- page_navbar(
-  title = span(class = "brand", logo_svg, span("Distribution ", tags$b("Explorer"))),
+  title = span(class = "brand", logo_svg, span("Distribution", tags$b("Explorer"))),
   window_title = "Distribution Explorer",
   theme = app_theme,
   bg = "#0F1A3A",
@@ -310,16 +298,13 @@ ui <- page_navbar(
   nav_panel("Bivariate 3-D", icon = icon("cube"), layout_sidebar(sidebar = bv_sidebar, bv_main, fillable = FALSE)),
   nav_panel("About", icon = icon("circle-info"), about_panel),
   nav_spacer(),
-  nav_item(input_dark_mode(id = "dark_mode", mode = "light")),
-  nav_item(tags$a(class = "nav-link", icon("github"), href = "https://github.com/ChaoranHu/distribution_plot",
+  nav_item(tags$a(icon("github"), href = "https://github.com/ChaoranHu/distribution_plot",
                   target = "_blank", title = "Source code"))
 )
 
 # --------------------------------------------------------------------- server
 
 server <- function(input, output, session) {
-
-  is_dark <- reactive(identical(input$dark_mode, "dark"))
 
   # ---------------------------------------------------------- univariate ----
 
@@ -376,12 +361,11 @@ server <- function(input, output, session) {
     cs <- pins()
     lv <- live_curve()
     if (!(lv$label %in% vapply(cs, `[[`, character(1), "label"))) cs <- c(cs, list(lv))
-    pal <- curve_palette(is_dark())
-    for (i in seq_along(cs)) cs[[i]]$colour <- pal[(i - 1) %% length(pal) + 1]
+    for (i in seq_along(cs)) cs[[i]]$colour <- palette_curves[(i - 1) %% length(palette_curves) + 1]
     cs
   })
 
-  output$pin_list <- renderUI(pin_list_ui(pins(), "remove_pin", "No pinned curves yet.", curve_palette(is_dark())))
+  output$pin_list <- renderUI(pin_list_ui(pins(), "remove_pin", "No pinned curves yet."))
 
   xlim <- reactive({
     if (input$x_mode == "fixed") {
@@ -412,18 +396,14 @@ server <- function(input, output, session) {
 
   main_fun <- reactive(if (input$view == "both") "pdf" else input$view)
 
-  fixed_ylim <- reactive({
-    if (input$y_mode != "fixed") return(NULL)
-    validate(need(is.numeric(input$ymin) && is.numeric(input$ymax) && input$ymin < input$ymax,
-                  "Fixed y axis: min must be smaller than max."))
-    c(input$ymin, input$ymax)
-  })
-
-  # The function name goes above the plot only when two plots sit side by side;
-  # otherwise the view buttons in the card header already say it.
   main_plot <- reactive({
-    make_uni_plot(curves(), main_fun(), xlim(), fixed_ylim(), shade(), sample_vals(),
-                  dark = is_dark(), title = input$view == "both")
+    ylim <- NULL
+    if (input$y_mode == "fixed") {
+      validate(need(is.numeric(input$ymin) && is.numeric(input$ymax) && input$ymin < input$ymax,
+                    "Fixed y axis: min must be smaller than max."))
+      ylim <- c(input$ymin, input$ymax)
+    }
+    make_uni_plot(curves(), main_fun(), xlim(), ylim, shade(), sample_vals())
   })
 
   output$plot_area <- renderUI({
@@ -437,8 +417,7 @@ server <- function(input, output, session) {
   })
 
   output$plot_main <- renderPlot(main_plot(), res = 96)
-  output$plot_cdf <- renderPlot(make_uni_plot(curves(), "cdf", xlim(), NULL, shade(), dark = is_dark()),
-                                res = 96)
+  output$plot_cdf <- renderPlot(make_uni_plot(curves(), "cdf", xlim(), NULL, shade()), res = 96)
 
   output$plot_title <- renderUI({
     spec <- distributions[[input$dist]]
@@ -467,9 +446,7 @@ server <- function(input, output, session) {
   output$download_plot <- downloadHandler(
     filename = function() paste0("distribution-", input$dist, "-", main_fun(), ".png"),
     content = function(file) {
-      # The download is always light, with the function name as its title.
-      g <- make_uni_plot(curves(), main_fun(), xlim(), fixed_ylim(), shade(), sample_vals())
-      ggsave(file, g, width = 9, height = 6, dpi = 150, bg = "white")
+      ggsave(file, main_plot(), width = 9, height = 6, dpi = 150, bg = "white")
     }
   )
 
@@ -546,15 +523,14 @@ server <- function(input, output, session) {
     i <- as.integer(input$bv_remove_pin)
     if (i >= 1 && i <= length(cur)) bv_pins(cur[-i])
   })
-  output$bv_pin_list <- renderUI(pin_list_ui(bv_pins(), "bv_remove_pin", "No pinned surfaces yet.", curve_palette(is_dark())))
+  output$bv_pin_list <- renderUI(pin_list_ui(bv_pins(), "bv_remove_pin", "No pinned surfaces yet."))
 
   # Pinned surfaces first, then the live one; colours follow that order.
   bv_surfaces <- reactive({
     cs <- bv_pins()
     lv <- bv_live()
     if (!(lv$label %in% vapply(cs, `[[`, character(1), "label"))) cs <- c(cs, list(lv))
-    pal <- curve_palette(is_dark())
-    for (i in seq_along(cs)) cs[[i]]$colour <- pal[(i - 1) %% length(pal) + 1]
+    for (i in seq_along(cs)) cs[[i]]$colour <- palette_curves[(i - 1) %% length(palette_curves) + 1]
     cs
   })
 
@@ -621,17 +597,15 @@ server <- function(input, output, session) {
 
   output$bv_surface <- renderPlotly({
     d <- bv_data()
-    ink <- ink_for(is_dark())
     single <- length(d$grids) == 1
     p <- plot_ly()
     for (g in d$grids) {
       p <- if (single) {
-        add_surface(p, x = g$x1, y = g$x2, z = g$z, colorscale = bv_colorscale(input$bv_colors, is_dark()),
+        add_surface(p, x = g$x1, y = g$x2, z = g$z, colorscale = bv_colorscale(input$bv_colors),
                     cmin = 0, cmax = d$zmax, name = g$label,
                     contours = list(z = list(show = TRUE, usecolormap = TRUE, project = list(z = TRUE),
                                              highlightcolor = "#ffffff")),
-                    colorbar = list(title = list(text = "f(x₁, x₂)"), len = 0.6, thickness = 12,
-                                    outlinewidth = 0),
+                    colorbar = list(title = list(text = "f(x₁, x₂)"), len = 0.6, thickness = 14),
                     hovertemplate = paste0(bv_hover, "<extra></extra>"))
       } else {
         # One flat colour per surface, partly transparent so that overlaps stay visible.
@@ -650,14 +624,14 @@ server <- function(input, output, session) {
         margin = list(l = 0, r = 0, t = 10, b = 0),
         legend = list(orientation = "h", x = 0, y = -0.02, font = list(size = 11)),
         scene = list(
-          xaxis = scene_axis(ink, title = "x₁", range = d$ranges$x1),
-          yaxis = scene_axis(ink, title = "x₂", range = d$ranges$x2),
-          zaxis = scene_axis(ink, title = "density", range = c(0, d$zmax)),
+          xaxis = scene_axis(title = "x₁", range = d$ranges$x1),
+          yaxis = scene_axis(title = "x₂", range = d$ranges$x2),
+          zaxis = scene_axis(title = "density", range = c(0, d$zmax)),
           aspectmode = "manual", aspectratio = list(x = 1, y = 1, z = 0.65),
           camera = list(eye = list(x = 1.55, y = -1.55, z = 0.95))
         ),
-        font = plotly_font(ink),
-        hoverlabel = list(font = plotly_font(ink), bgcolor = ink$surface, bordercolor = ink$axis),
+        font = plotly_font,
+        hoverlabel = list(font = plotly_font, bgcolor = "#FFFFFF", bordercolor = ink$axis),
         paper_bgcolor = "rgba(0,0,0,0)"
       ) |>
       config(displaylogo = FALSE)
@@ -665,16 +639,14 @@ server <- function(input, output, session) {
 
   output$bv_contour <- renderPlotly({
     d <- bv_data()
-    ink <- ink_for(is_dark())
     single <- length(d$grids) == 1
     p <- plot_ly()
     for (g in d$grids) {
       p <- if (single) {
-        add_contour(p, x = g$x1, y = g$x2, z = g$z, colorscale = bv_colorscale(input$bv_colors, is_dark()),
+        add_contour(p, x = g$x1, y = g$x2, z = g$z, colorscale = bv_colorscale(input$bv_colors),
                     zauto = FALSE, zmin = 0, zmax = d$zmax, ncontours = 18,
                     contours = list(coloring = "heatmap", showlines = TRUE),
-                    line = list(color = if (is_dark()) "rgba(255,255,255,0.12)" else "rgba(15,26,58,0.18)",
-                                width = 0.6),
+                    line = list(color = "rgba(15,26,58,0.18)", width = 0.6),
                     showscale = input$bv_view == "contour", name = g$label,
                     hovertemplate = paste0(bv_hover, "<extra></extra>"))
       } else {
@@ -688,7 +660,7 @@ server <- function(input, output, session) {
     s <- bv_sample()
     if (!is.null(s)) {
       p <- p |> add_markers(x = s[, 1], y = s[, 2], name = "sample",
-                            marker = list(size = 4, color = if (is_dark()) "rgba(226,232,240,0.55)" else "rgba(15,26,58,0.5)",
+                            marker = list(size = 4, color = "rgba(15,26,58,0.5)",
                                           line = list(width = 0)),
                             hoverinfo = "skip", showlegend = FALSE)
     }
@@ -697,11 +669,11 @@ server <- function(input, output, session) {
         uirevision = "bv",
         margin = list(l = 50, r = 10, t = 10, b = 45),
         legend = list(orientation = "h", x = 0, y = -0.15, font = list(size = 11)),
-        xaxis = plotly_axis(ink, title = "x₁", range = d$ranges$x1),
-        yaxis = plotly_axis(ink, title = "x₂", range = d$ranges$x2),
-        plot_bgcolor = if (single) NULL else ink$surface,
-        font = plotly_font(ink),
-        hoverlabel = list(font = plotly_font(ink), bgcolor = ink$surface, bordercolor = ink$axis),
+        xaxis = plotly_axis(title = "x₁", range = d$ranges$x1),
+        yaxis = plotly_axis(title = "x₂", range = d$ranges$x2),
+        plot_bgcolor = if (single) NULL else "#ffffff",
+        font = plotly_font,
+        hoverlabel = list(font = plotly_font, bgcolor = "#FFFFFF", bordercolor = ink$axis),
         paper_bgcolor = "rgba(0,0,0,0)"
       ) |>
       config(displaylogo = FALSE)
