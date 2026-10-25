@@ -17,28 +17,26 @@ library(mvtnorm)
 
 app_theme <- bs_theme(
   version = 5,
-  primary = "#2F5BD3",
-  secondary = "#64748B",
-  bg = "#F3F5F9",
-  fg = "#1E293B",
-  base_font = font_collection(font_google("Inter", local = FALSE), "system-ui", "sans-serif"),
-  heading_font = font_collection(font_google("Plus Jakarta Sans", wght = c(600, 700, 800), local = FALSE),
-                                 "system-ui", "sans-serif"),
+  primary = "#1B2A41",
+  secondary = "#5B6472",
+  bg = "#F7F6F2",
+  fg = "#1F2328",
+  base_font = font_collection(font_google("Source Sans 3", local = FALSE), "system-ui", "sans-serif"),
+  heading_font = font_collection(font_google("Source Serif 4", wght = c(500, 600, 700), local = FALSE),
+                                 "Georgia", "serif"),
   code_font = font_google("JetBrains Mono", local = FALSE),
-  "border-radius" = "0.6rem",
-  "border-radius-lg" = "0.9rem",
-  "card-border-radius" = "1rem",
+  "border-radius" = "3px",
+  "border-radius-lg" = "4px",
+  "card-border-radius" = "4px",
   "card-cap-bg" = "#FFFFFF",
-  "border-color" = "#E3E8F0",
+  "border-color" = "#E2DFD8",
   "link-decoration" = "none"
 )
 
 # A small bell curve used as the app logo.
 logo_svg <- HTML(paste0(
   '<svg class="brand-logo" viewBox="0 0 32 32" width="30" height="30" aria-hidden="true">',
-  '<rect width="32" height="32" rx="9" fill="url(#lg)"/>',
-  '<defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">',
-  '<stop offset="0" stop-color="#5B8DEF"/><stop offset="1" stop-color="#EB6834"/></linearGradient></defs>',
+  '<rect width="32" height="32" rx="5" fill="#1B2A41"/>',
   '<path d="M5 24 C10 24 11 8 16 8 C21 8 22 24 27 24" fill="none" stroke="#fff" ',
   'stroke-width="2.6" stroke-linecap="round"/></svg>'
 ))
@@ -84,7 +82,7 @@ bv_colorscale <- function(name) {
   lapply(seq_along(cols), function(i) list((i - 1) / (length(cols) - 1), cols[i]))
 }
 
-plotly_font <- list(family = "Inter, system-ui, sans-serif", size = 12, color = ink$text)
+plotly_font <- list(family = "'Source Sans 3', system-ui, sans-serif", size = 12, color = ink$text)
 plotly_axis <- function(title, ...) {
   list(..., gridcolor = ink$grid, linecolor = ink$axis, zeroline = FALSE,
        tickfont = list(color = ink$muted), title = list(text = title, font = list(color = ink$muted)))
@@ -92,7 +90,7 @@ plotly_axis <- function(title, ...) {
 
 scene_axis <- function(title, ...) {
   list(..., gridcolor = "#DCE3EE", zerolinecolor = "#C3CDDC", showbackground = TRUE,
-       backgroundcolor = "#F7F9FC", tickfont = list(color = ink$muted, size = 11),
+       backgroundcolor = "#FAF9F6", tickfont = list(color = ink$muted, size = 11),
        title = list(text = title, font = list(color = ink$muted)))
 }
 
@@ -290,8 +288,8 @@ ui <- page_navbar(
   title = span(class = "brand", logo_svg, span("Distribution", tags$b("Explorer"))),
   window_title = "Distribution Explorer",
   theme = app_theme,
-  bg = "#0F1A3A",
-  inverse = TRUE,
+  bg = "#FFFFFF",
+  inverse = FALSE,
   header = tagList(withMathJax(), tags$link(rel = "stylesheet", href = "styles.css")),
   nav_panel("Univariate", icon = icon("wave-square"), layout_sidebar(sidebar = uni_sidebar, uni_main, fillable = FALSE)),
   nav_panel("Bivariate 3-D", icon = icon("cube"), layout_sidebar(sidebar = bv_sidebar, bv_main, fillable = FALSE)),
