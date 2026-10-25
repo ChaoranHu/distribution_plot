@@ -21,7 +21,8 @@ bv_location_params <- list(
 ddirichlet3 <- function(x1, x2, p) {
   x3 <- 1 - x1 - x2
   inside <- x1 > 0 & x2 > 0 & x3 > 0
-  out <- rep(NA_real_, length(x1))
+  # Zero off the triangle, so the surface and contour edges stay smooth.
+  out <- numeric(length(x1))
   a <- c(p$a1, p$a2, p$a3)
   logc <- lgamma(sum(a)) - sum(lgamma(a))
   out[inside] <- exp(logc + (a[1] - 1) * log(x1[inside]) + (a[2] - 1) * log(x2[inside]) +

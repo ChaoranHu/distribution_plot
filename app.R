@@ -214,8 +214,7 @@ bv_sidebar <- sidebar(
     accordion_panel(
       "Display", icon = icon("cube"),
       radioButtons("bv_view", NULL,
-                   c("3-D surface and contour" = "both", "3-D surface" = "surface",
-                     "Contour map" = "contour"), selected = "both"),
+                   c("3-D surface" = "surface", "Contour map" = "contour"), selected = "surface"),
       selectInput("bv_colors", "Colour scale (single surface)",
                   c("Ocean", "Ember", "Viridis", "Cividis", "YlGnBu", "Portland", "Hot")),
       sliderInput("bv_n", "Grid resolution", min = 30, max = 150, value = 80, step = 10,
@@ -273,7 +272,7 @@ about_panel <- div(
       tags$li(strong("Compare: "), "pin curves to overlay several parameter sets, even from different distributions, for example a Binomial pmf and its normal approximation."),
       tags$li(strong("Axes: "), "fix the axes, or freeze the current view, so that the picture does not rescale while you move a slider."),
       tags$li(strong("Probability and samples: "), "shade \\(P(a \\le X \\le b)\\) and overlay a histogram of a random sample."),
-      tags$li(strong("Bivariate 3-D: "), "rotate and zoom 3-D density surfaces of bivariate distributions, with a matching contour map.")
+      tags$li(strong("Bivariate 3-D: "), "rotate and zoom 3-D density surfaces of bivariate distributions, or view them as a contour map.")
     ),
     h5("Functions shown"),
     p("For a random variable \\(X\\) with density \\(f\\) (or mass function \\(P(X = x)\\) when \\(X\\) is discrete):"),
@@ -547,9 +546,19 @@ server <- function(input, output, session) {
   bv_data <- reactive({
     r <- bv_ranges()
     cs <- bv_surfaces()
-    grids <- lapply(cs, function(cv) bv_grid(cv$dist, cv$par, r$x1, r$x2, input$bv_n))
+    # A single surface fills the axes. With several, each surface gets its own grid over
+    # its own range (clipped to the axes), so a narrow density is not drawn on a grid
+    # sized for a much wider one.
+    grids <- lapply(cs, function(cv) {
+      own <- bivariates[[cv$dist]]$range(cv$par)
+      x1 <- c(max(r$x1[1], own$x1[1]), min(r$x1[2], own$x1[2]))
+      x2 <- c(max(r$x2[1], own$x2[1]), min(r$x2[2], own$x2[2]))
+      if (length(cs) == 1 || x1[1] >= x1[2] || x2[1] >= x2[2]) { x1 <- r$x1; x2 <- r$x2 }
+      bv_grid(cv$dist, cv$par, x1, x2, input$bv_n)
+    })
     auto_max <- max(vapply(seq_along(cs), function(i) {
       z <- grids[[i]]$z[is.finite(grids[[i]]$z)]
+      if (cs[[i]]$dist == "dirichlet") z <- z[z > 0]
       if (!length(z)) return(0)
       if (cs[[i]]$dist == "dirichlet" && max(z) > 4 * stats::quantile(z, 0.95)) {
         # Densities with a concentration below 1 diverge at the edges of the triangle.
@@ -560,15 +569,17 @@ server <- function(input, output, session) {
     }, numeric(1)))
     zmax <- if (input$bv_axes == "fixed" && is.numeric(input$bv_zmax) && input$bv_zmax > 0) {
       input$bv_zmax
-    } else {
+    } else if (auto_max > 0) {
       auto_max
+    } else {
+      1
     }
     for (i in seq_along(grids)) {
       grids[[i]]$z[grids[[i]]$z > zmax] <- zmax
       grids[[i]]$colour <- cs[[i]]$colour
       grids[[i]]$label <- cs[[i]]$label
     }
-    list(grids = grids, x1 = grids[[1]]$x1, x2 = grids[[1]]$x2, zmax = zmax, ranges = r)
+    list(grids = grids, zmax = zmax, ranges = r)
   })
 
   bv_sample <- reactive({
@@ -585,9 +596,6 @@ server <- function(input, output, session) {
 
   output$bv_plot_area <- renderUI({
     switch(input$bv_view,
-      both = layout_columns(col_widths = c(7, 5),
-                            plotlyOutput("bv_surface", height = "520px"),
-                            plotlyOutput("bv_contour", height = "520px")),
       surface = plotlyOutput("bv_surface", height = "560px"),
       contour = plotlyOutput("bv_contour", height = "560px"))
   })
@@ -609,11 +617,11 @@ server <- function(input, output, session) {
                     hovertemplate = paste0(bv_hover, "<extra></extra>"))
       } else {
         # One flat colour per surface, partly transparent so that overlaps stay visible.
-        # The near-zero floor is dropped, otherwise each surface's floor hides the others.
-        z <- g$z
-        z[z < 0.02 * d$zmax] <- NA
-        add_surface(p, x = g$x1, y = g$x2, z = z, colorscale = solid_scale(g$colour),
-                    showscale = FALSE, opacity = 0.7, name = g$label, showlegend = TRUE,
+        # The near-zero floor fades out through an opacity scale, otherwise each surface's
+        # floor hides the others. (Cutting it away with NA leaves ragged, spiky edges.)
+        add_surface(p, x = g$x1, y = g$x2, z = g$z, colorscale = solid_scale(g$colour),
+                    cmin = 0, cmax = d$zmax, showscale = FALSE, name = g$label, showlegend = TRUE,
+                    opacityscale = list(c(0, 0), c(0.01, 0), c(0.04, 0.75), c(1, 0.75)),
                     lighting = list(ambient = 0.55, diffuse = 0.8, specular = 0.15),
                     hovertemplate = paste0(bv_hover, "<extra>", g$label, "</extra>"))
       }
@@ -628,7 +636,7 @@ server <- function(input, output, session) {
           yaxis = scene_axis(title = "x₂", range = d$ranges$x2),
           zaxis = scene_axis(title = "density", range = c(0, d$zmax)),
           aspectmode = "manual", aspectratio = list(x = 1, y = 1, z = 0.65),
-          camera = list(eye = list(x = 1.55, y = -1.55, z = 0.95))
+          camera = list(eye = list(x = 1.35, y = -1.35, z = 0.85))
         ),
         font = plotly_font,
         hoverlabel = list(font = plotly_font, bgcolor = "#FFFFFF", bordercolor = ink$axis),
@@ -647,7 +655,8 @@ server <- function(input, output, session) {
                     zauto = FALSE, zmin = 0, zmax = d$zmax, ncontours = 18,
                     contours = list(coloring = "heatmap", showlines = TRUE),
                     line = list(color = "rgba(15,26,58,0.18)", width = 0.6),
-                    showscale = input$bv_view == "contour", name = g$label,
+                    colorbar = list(title = list(text = "f(x₁, x₂)"), len = 0.6, thickness = 14),
+                    name = g$label,
                     hovertemplate = paste0(bv_hover, "<extra></extra>"))
       } else {
         add_contour(p, x = g$x1, y = g$x2, z = g$z, colorscale = solid_scale(g$colour),

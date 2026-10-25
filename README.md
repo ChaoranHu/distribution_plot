@@ -27,7 +27,7 @@ An R Shiny app for exploring probability distributions, deployed at
 
 * Bivariate normal, bivariate Student t, Dirichlet with 3 components, and a mixture of
   two bivariate normals.
-* Rotatable 3-D density surface (plotly) next to a contour map, with an optional random
+* Rotatable 3-D density surface (plotly) or a contour map, with an optional random
   sample drawn on the contour map.
 * Fixed or frozen axes, colour scale and grid resolution controls.
 * Compare: pin surfaces to overlay up to 6 bivariate densities, from the same or different distributions, with a table of their means, standard deviations and correlations.
