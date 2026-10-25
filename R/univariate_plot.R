@@ -8,13 +8,13 @@ fun_labels <- c(pdf = "Density / mass", cdf = "Cumulative distribution F(x)",
                 quantile = "Quantile F⁻¹(u)")
 
 # Categorical curve colours, assigned in this fixed order (pinned curves first, then
-# the live curve). The first eight are checked for colour-blind separation; the ninth
-# is a neutral slate for the last possible slot.
-palette_curves <- c("#2A78D6", "#EB6834", "#1BAF7A", "#EDA100",
-                    "#E87BA4", "#008300", "#6250D6", "#E34948", "#475569")
+# the live curve): the Okabe and Ito colour blind safe palette (yellow dropped, as it
+# is too light on white), extended with wine, green and grey for the last slots.
+palette_curves <- c("#0072B2", "#D55E00", "#009E73", "#E69F00", "#CC79A7",
+                    "#56B4E9", "#882255", "#117733", "#555555")
 
 # Ink colours shared by the ggplot theme and the plotly layouts.
-ink <- list(text = "#1E293B", muted = "#64748B", grid = "#E7EBF2", axis = "#CBD5E1")
+ink <- list(text = "#1F2328", muted = "#5B6472", grid = "#ECEAE4", axis = "#C9C5BC")
 
 # ggplot theme matching the app's cards.
 theme_explorer <- function(base_size = 15) {
