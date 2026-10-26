@@ -477,6 +477,10 @@ server <- function(input, output, session) {
       h6(spec$label, span(class = "badge bg-secondary-subtle text-secondary ms-1", spec$type)),
       div(class = "formula-display", paste0("$$", spec$formula, "$$")),
       p("Support: ", paste0("\\(", spec$support, "\\)")),
+      p(class = "mb-1", strong("Mean and variance")),
+      div(class = "formula-display",
+          paste0("$$\\begin{aligned} E[X] &= ", spec$mean_tex,
+                 " \\\\[4pt] \\operatorname{Var}(X) &= ", spec$var_tex, " \\end{aligned}$$")),
       p(class = "mb-1", strong("Notation")),
       tags$ul(class = "small", lapply(spec$notation, tags$li))
     ))
@@ -719,6 +723,10 @@ server <- function(input, output, session) {
       div(class = "formula-display",
           lapply(strsplit(spec$formula, ", \\quad ", fixed = TRUE)[[1]],
                  function(f) paste0("$$", f, "$$"))),
+      p(class = "mb-1", strong("Mean and covariance")),
+      div(class = "formula-display",
+          paste0("$$\\begin{aligned} ", paste(spec$moments_tex, collapse = " \\\\[4pt] "),
+                 " \\end{aligned}$$")),
       p(class = "mb-1", strong("Notation")),
       tags$ul(class = "small", lapply(spec$notation, tags$li))
     ))

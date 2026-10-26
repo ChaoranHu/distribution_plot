@@ -2,7 +2,8 @@
 #
 # Every entry has label, params, density(x1, x2, par) (vectorised),
 # sample(n, par), range(par) giving list(x1 = c(lo, hi), x2 = c(lo, hi)),
-# optional check(par), formula and notation (LaTeX).
+# optional check(par), formula, moments_tex (lines of LaTeX for the mean and
+# covariance) and notation (LaTeX).
 
 bvn_sigma <- function(p) {
   matrix(c(p$s1^2, p$rho * p$s1 * p$s2, p$rho * p$s1 * p$s2, p$s2^2), 2)
@@ -43,6 +44,8 @@ bivariates <- list(
                      "\\exp\\left(-\\tfrac{1}{2}(\\mathbf{x}-\\boldsymbol{\\mu})^\\top ",
                      "\\boldsymbol{\\Sigma}^{-1}(\\mathbf{x}-\\boldsymbol{\\mu})\\right), \\quad ",
                      sigma_tex),
+    moments_tex = c("E[\\mathbf{X}] &= \\boldsymbol{\\mu}",
+                    "\\operatorname{Cov}(\\mathbf{X}) &= \\boldsymbol{\\Sigma}"),
     notation = c("\\(\\mathbf{x} = (x_1, x_2)^\\top \\in \\mathbb{R}^2\\)",
                  "\\(\\boldsymbol{\\mu} = (\\mu_1, \\mu_2)^\\top\\): mean vector",
                  "\\(\\sigma_1, \\sigma_2 > 0\\): marginal standard deviations",
@@ -66,6 +69,8 @@ bivariates <- list(
                      "\\left(1 + \\frac{1}{\\nu}(\\mathbf{x}-\\boldsymbol{\\mu})^\\top ",
                      "\\boldsymbol{\\Sigma}^{-1}(\\mathbf{x}-\\boldsymbol{\\mu})\\right)^{-\\frac{\\nu+2}{2}}, \\quad ",
                      sigma_tex),
+    moments_tex = c("E[\\mathbf{X}] &= \\begin{cases} \\boldsymbol{\\mu} & \\nu > 1 \\\\ \\text{undefined} & \\nu \\le 1 \\end{cases}",
+                    "\\operatorname{Cov}(\\mathbf{X}) &= \\begin{cases} \\frac{\\nu}{\\nu-2}\\boldsymbol{\\Sigma} & \\nu > 2 \\\\ \\infty & 1 < \\nu \\le 2 \\\\ \\text{undefined} & \\nu \\le 1 \\end{cases}"),
     notation = c("\\(\\mathbf{x} = (x_1, x_2)^\\top \\in \\mathbb{R}^2\\)",
                  "\\(\\boldsymbol{\\mu}\\): location vector",
                  "\\(\\boldsymbol{\\Sigma}\\): scale matrix built from \\(\\sigma_1, \\sigma_2, \\rho\\); the covariance is \\(\\frac{\\nu}{\\nu-2}\\boldsymbol{\\Sigma}\\) when \\(\\nu > 2\\)",
@@ -86,6 +91,9 @@ bivariates <- list(
     formula = paste0("f(x_1, x_2) = \\frac{\\Gamma(\\alpha_1+\\alpha_2+\\alpha_3)}",
                      "{\\Gamma(\\alpha_1)\\Gamma(\\alpha_2)\\Gamma(\\alpha_3)} ",
                      "x_1^{\\alpha_1-1} x_2^{\\alpha_2-1} x_3^{\\alpha_3-1}, \\quad x_3 = 1 - x_1 - x_2"),
+    moments_tex = c("E[X_i] &= \\frac{\\alpha_i}{\\alpha_0}",
+                    "\\operatorname{Var}(X_i) &= \\frac{\\alpha_i(\\alpha_0-\\alpha_i)}{\\alpha_0^2(\\alpha_0+1)}",
+                    "\\operatorname{Cov}(X_1, X_2) &= -\\frac{\\alpha_1\\alpha_2}{\\alpha_0^2(\\alpha_0+1)}, \\quad \\alpha_0 = \\alpha_1+\\alpha_2+\\alpha_3"),
     notation = c("\\((x_1, x_2, x_3)\\): proportions with \\(x_i > 0\\) and \\(x_1 + x_2 + x_3 = 1\\), so the density is drawn over \\((x_1, x_2)\\) on the triangle",
                  "\\(\\alpha_1, \\alpha_2, \\alpha_3 > 0\\): concentration parameters; values below 1 push mass to the corners",
                  "\\(\\Gamma(\\cdot)\\): the gamma function")
@@ -120,6 +128,8 @@ bivariates <- list(
     formula = paste0("f(\\mathbf{x}) = w\\,\\phi(\\mathbf{x};\\boldsymbol{\\mu}_1,\\boldsymbol{\\Sigma}) + ",
                      "(1-w)\\,\\phi(\\mathbf{x};\\boldsymbol{\\mu}_2,\\boldsymbol{\\Sigma}), \\quad ",
                      "\\boldsymbol{\\Sigma} = \\sigma^2\\begin{pmatrix} 1 & \\rho \\\\ \\rho & 1 \\end{pmatrix}"),
+    moments_tex = c("E[\\mathbf{X}] &= w\\boldsymbol{\\mu}_1 + (1-w)\\boldsymbol{\\mu}_2",
+                    "\\operatorname{Cov}(\\mathbf{X}) &= \\boldsymbol{\\Sigma} + w(1-w)(\\boldsymbol{\\mu}_1-\\boldsymbol{\\mu}_2)(\\boldsymbol{\\mu}_1-\\boldsymbol{\\mu}_2)^\\top"),
     notation = c("\\(\\phi(\\mathbf{x};\\boldsymbol{\\mu},\\boldsymbol{\\Sigma})\\): bivariate normal density with mean \\(\\boldsymbol{\\mu}\\) and covariance \\(\\boldsymbol{\\Sigma}\\)",
                  "\\(w \\in [0,1]\\): probability of drawing from component 1",
                  "\\(\\boldsymbol{\\mu}_k = (\\mu_{k1}, \\mu_{k2})^\\top\\): mean of component \\(k\\)",
