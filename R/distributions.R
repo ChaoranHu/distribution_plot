@@ -8,6 +8,7 @@
 #   range        optional function of par giving a default x range,
 #   heavy        TRUE for heavy tailed distributions (narrower auto range),
 #   formula      LaTeX for the pdf / pmf, support, notation (character vector).
+#   mean_tex, var_tex  LaTeX for E[X] and Var(X), with the conditions they need.
 
 param <- function(id, label, min, max, value, step = NULL) {
   list(id = id, label = label, min = min, max = max, value = value, step = step)
@@ -28,6 +29,8 @@ distributions <- list(
     var = function(p) p$sigma^2,
     formula = "f(x) = \\frac{1}{\\sigma\\sqrt{2\\pi}} \\exp\\left(-\\frac{(x-\\mu)^2}{2\\sigma^2}\\right)",
     support = "x \\in \\mathbb{R}",
+    mean_tex = "\\mu",
+    var_tex = "\\sigma^2",
     notation = c("\\(\\mu\\): mean (location)",
                  "\\(\\sigma > 0\\): standard deviation (scale)")
   ),
@@ -44,6 +47,8 @@ distributions <- list(
     range = function(p) c(-6, 6),
     formula = "f(x) = \\frac{\\Gamma\\left(\\frac{\\nu+1}{2}\\right)}{\\sqrt{\\nu\\pi}\\,\\Gamma\\left(\\frac{\\nu}{2}\\right)} \\left(1+\\frac{x^2}{\\nu}\\right)^{-\\frac{\\nu+1}{2}}",
     support = "x \\in \\mathbb{R}",
+    mean_tex = "\\begin{cases} 0 & \\nu > 1 \\\\ \\text{undefined} & \\nu \\le 1 \\end{cases}",
+    var_tex = "\\begin{cases} \\frac{\\nu}{\\nu-2} & \\nu > 2 \\\\ \\infty & 1 < \\nu \\le 2 \\\\ \\text{undefined} & \\nu \\le 1 \\end{cases}",
     notation = c("\\(\\nu > 0\\): degrees of freedom",
                  "\\(\\Gamma(\\cdot)\\): the gamma function")
   ),
@@ -61,6 +66,8 @@ distributions <- list(
     range = function(p) p$x0 + c(-8, 8) * p$gamma,
     formula = "f(x) = \\frac{1}{\\pi\\gamma\\left[1+\\left(\\frac{x-x_0}{\\gamma}\\right)^2\\right]}",
     support = "x \\in \\mathbb{R}",
+    mean_tex = "\\text{undefined}",
+    var_tex = "\\text{undefined}",
     notation = c("\\(x_0\\): location (median and mode)",
                  "\\(\\gamma > 0\\): scale (half width at half maximum)",
                  "The mean and variance do not exist.")
@@ -78,6 +85,8 @@ distributions <- list(
     var = function(p) p$s^2 * pi^2 / 3,
     formula = "f(x) = \\frac{e^{-(x-\\mu)/s}}{s\\left(1+e^{-(x-\\mu)/s}\\right)^2}",
     support = "x \\in \\mathbb{R}",
+    mean_tex = "\\mu",
+    var_tex = "\\frac{\\pi^2 s^2}{3}",
     notation = c("\\(\\mu\\): location (mean)", "\\(s > 0\\): scale")
   ),
 
@@ -97,6 +106,8 @@ distributions <- list(
     var = function(p) 2 * p$b^2,
     formula = "f(x) = \\frac{1}{2b} \\exp\\left(-\\frac{|x-\\mu|}{b}\\right)",
     support = "x \\in \\mathbb{R}",
+    mean_tex = "\\mu",
+    var_tex = "2b^2",
     notation = c("\\(\\mu\\): location (mean, median, mode)", "\\(b > 0\\): scale")
   ),
 
@@ -117,6 +128,8 @@ distributions <- list(
     },
     formula = "f(x) = \\frac{1}{b-a}",
     support = "a \\le x \\le b",
+    mean_tex = "\\frac{a+b}{2}",
+    var_tex = "\\frac{(b-a)^2}{12}",
     notation = c("\\(a < b\\): the end points of the interval")
   ),
 
@@ -132,6 +145,8 @@ distributions <- list(
     var = function(p) (exp(p$sigma^2) - 1) * exp(2 * p$mu + p$sigma^2),
     formula = "f(x) = \\frac{1}{x\\sigma\\sqrt{2\\pi}} \\exp\\left(-\\frac{(\\ln x-\\mu)^2}{2\\sigma^2}\\right)",
     support = "x > 0",
+    mean_tex = "e^{\\mu + \\sigma^2/2}",
+    var_tex = "\\left(e^{\\sigma^2} - 1\\right) e^{2\\mu + \\sigma^2}",
     notation = c("\\(\\mu\\): mean of \\(\\ln X\\)",
                  "\\(\\sigma > 0\\): standard deviation of \\(\\ln X\\)")
   ),
@@ -147,6 +162,8 @@ distributions <- list(
     var = function(p) 1 / p$lambda^2,
     formula = "f(x) = \\lambda e^{-\\lambda x}",
     support = "x \\ge 0",
+    mean_tex = "\\frac{1}{\\lambda}",
+    var_tex = "\\frac{1}{\\lambda^2}",
     notation = c("\\(\\lambda > 0\\): rate, so the mean is \\(1/\\lambda\\)")
   ),
 
@@ -162,6 +179,8 @@ distributions <- list(
     var = function(p) p$shape * p$scale^2,
     formula = "f(x) = \\frac{1}{\\Gamma(k)\\,\\theta^k} x^{k-1} e^{-x/\\theta}",
     support = "x > 0",
+    mean_tex = "k\\theta",
+    var_tex = "k\\theta^2",
     notation = c("\\(k > 0\\): shape", "\\(\\theta > 0\\): scale",
                  "\\(\\Gamma(\\cdot)\\): the gamma function")
   ),
@@ -180,6 +199,8 @@ distributions <- list(
     var = function(p) if (p$shape > 2) p$scale^2 / ((p$shape - 1)^2 * (p$shape - 2)) else Inf,
     formula = "f(x) = \\frac{\\beta^\\alpha}{\\Gamma(\\alpha)} x^{-\\alpha-1} e^{-\\beta/x}",
     support = "x > 0",
+    mean_tex = "\\begin{cases} \\frac{\\beta}{\\alpha-1} & \\alpha > 1 \\\\ \\infty & \\alpha \\le 1 \\end{cases}",
+    var_tex = "\\begin{cases} \\frac{\\beta^2}{(\\alpha-1)^2(\\alpha-2)} & \\alpha > 2 \\\\ \\infty & \\alpha \\le 2 \\end{cases}",
     notation = c("\\(\\alpha > 0\\): shape", "\\(\\beta > 0\\): scale",
                  "If \\(Y \\sim \\text{Gamma}(\\alpha, \\text{rate}=\\beta)\\) then \\(1/Y\\) has this distribution.")
   ),
@@ -195,6 +216,8 @@ distributions <- list(
     var = function(p) 2 * p$k,
     formula = "f(x) = \\frac{1}{2^{k/2}\\,\\Gamma(k/2)} x^{k/2-1} e^{-x/2}",
     support = "x > 0",
+    mean_tex = "k",
+    var_tex = "2k",
     notation = c("\\(k > 0\\): degrees of freedom",
                  "\\(\\Gamma(\\cdot)\\): the gamma function")
   ),
@@ -214,6 +237,8 @@ distributions <- list(
     },
     formula = "f(x) = \\frac{1}{x\\,B\\left(\\frac{d_1}{2},\\frac{d_2}{2}\\right)} \\sqrt{\\frac{(d_1x)^{d_1} d_2^{d_2}}{(d_1x+d_2)^{d_1+d_2}}}",
     support = "x > 0",
+    mean_tex = "\\begin{cases} \\frac{d_2}{d_2-2} & d_2 > 2 \\\\ \\text{undefined} & d_2 \\le 2 \\end{cases}",
+    var_tex = "\\begin{cases} \\frac{2d_2^2(d_1+d_2-2)}{d_1(d_2-2)^2(d_2-4)} & d_2 > 4 \\\\ \\infty & 2 < d_2 \\le 4 \\\\ \\text{undefined} & d_2 \\le 2 \\end{cases}",
     notation = c("\\(d_1, d_2 > 0\\): numerator and denominator degrees of freedom",
                  "\\(B(\\cdot,\\cdot)\\): the beta function")
   ),
@@ -231,6 +256,8 @@ distributions <- list(
     range = function(p) c(0, 1),
     formula = "f(x) = \\frac{x^{\\alpha-1}(1-x)^{\\beta-1}}{B(\\alpha,\\beta)}",
     support = "0 < x < 1",
+    mean_tex = "\\frac{\\alpha}{\\alpha+\\beta}",
+    var_tex = "\\frac{\\alpha\\beta}{(\\alpha+\\beta)^2(\\alpha+\\beta+1)}",
     notation = c("\\(\\alpha, \\beta > 0\\): shape parameters",
                  "\\(B(\\alpha,\\beta) = \\Gamma(\\alpha)\\Gamma(\\beta)/\\Gamma(\\alpha+\\beta)\\): the beta function")
   ),
@@ -247,7 +274,10 @@ distributions <- list(
     var = function(p) p$scale^2 * (gamma(1 + 2 / p$shape) - gamma(1 + 1 / p$shape)^2),
     formula = "f(x) = \\frac{k}{\\lambda}\\left(\\frac{x}{\\lambda}\\right)^{k-1} e^{-(x/\\lambda)^k}",
     support = "x \\ge 0",
-    notation = c("\\(k > 0\\): shape", "\\(\\lambda > 0\\): scale")
+    mean_tex = "\\lambda\\,\\Gamma\\left(1+\\frac{1}{k}\\right)",
+    var_tex = "\\lambda^2\\left[\\Gamma\\left(1+\\frac{2}{k}\\right) - \\Gamma\\left(1+\\frac{1}{k}\\right)^2\\right]",
+    notation = c("\\(k > 0\\): shape", "\\(\\lambda > 0\\): scale",
+                 "\\(\\Gamma(\\cdot)\\): the gamma function")
   ),
 
   # ------------------------------------------------------------------ discrete
@@ -264,6 +294,8 @@ distributions <- list(
     range = function(p) c(0, p$n),
     formula = "P(X = x) = \\binom{n}{x} p^x (1-p)^{n-x}",
     support = "x \\in \\{0, 1, \\dots, n\\}",
+    mean_tex = "np",
+    var_tex = "np(1-p)",
     notation = c("\\(n\\): number of independent trials",
                  "\\(p \\in [0,1]\\): probability of success in each trial",
                  "\\(X\\): number of successes")
@@ -280,6 +312,8 @@ distributions <- list(
     var = function(p) p$lambda,
     formula = "P(X = x) = \\frac{\\lambda^x e^{-\\lambda}}{x!}",
     support = "x \\in \\{0, 1, 2, \\dots\\}",
+    mean_tex = "\\lambda",
+    var_tex = "\\lambda",
     notation = c("\\(\\lambda > 0\\): expected number of events (mean and variance)")
   ),
 
@@ -294,6 +328,8 @@ distributions <- list(
     var = function(p) (1 - p$prob) / p$prob^2,
     formula = "P(X = x) = (1-p)^x p",
     support = "x \\in \\{0, 1, 2, \\dots\\}",
+    mean_tex = "\\frac{1-p}{p}",
+    var_tex = "\\frac{1-p}{p^2}",
     notation = c("\\(p \\in (0,1]\\): probability of success in each trial",
                  "\\(X\\): number of failures before the first success")
   ),
@@ -310,6 +346,8 @@ distributions <- list(
     var = function(p) p$size * (1 - p$prob) / p$prob^2,
     formula = "P(X = x) = \\binom{x+r-1}{x} p^r (1-p)^x",
     support = "x \\in \\{0, 1, 2, \\dots\\}",
+    mean_tex = "\\frac{r(1-p)}{p}",
+    var_tex = "\\frac{r(1-p)}{p^2}",
     notation = c("\\(r\\): number of successes to wait for",
                  "\\(p \\in (0,1]\\): probability of success in each trial",
                  "\\(X\\): number of failures before the \\(r\\)th success")
@@ -337,6 +375,8 @@ distributions <- list(
     range = function(p) c(max(0, p$n - (p$N - p$K)), min(p$n, p$K)),
     formula = "P(X = x) = \\frac{\\binom{K}{x}\\binom{N-K}{n-x}}{\\binom{N}{n}}",
     support = "\\max(0, n+K-N) \\le x \\le \\min(n, K)",
+    mean_tex = "\\frac{nK}{N}",
+    var_tex = "n\\,\\frac{K}{N}\\,\\frac{N-K}{N}\\,\\frac{N-n}{N-1}",
     notation = c("\\(N\\): population size", "\\(K\\): number of successes in the population",
                  "\\(n\\): number of draws without replacement",
                  "\\(X\\): number of successes drawn")
@@ -356,6 +396,8 @@ distributions <- list(
     range = function(p) c(p$a, p$b),
     formula = "P(X = x) = \\frac{1}{b-a+1}",
     support = "x \\in \\{a, a+1, \\dots, b\\}",
+    mean_tex = "\\frac{a+b}{2}",
+    var_tex = "\\frac{(b-a+1)^2-1}{12}",
     notation = c("\\(a \\le b\\): integer end points")
   )
 )
